@@ -10,10 +10,15 @@ fn main() {
 
         // stage 2
         let mut input = String::new();
+
         io::stdin()
             .read_line(&mut input)
             .expect("Failed to read line");
 
-        println!("{}: command not found", input.trim());
+        if input.trim() == "exit" {
+            break;
+        } else {
+            println!("{}: command not found", input.trim());
+        }
     }
 }
