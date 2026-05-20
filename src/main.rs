@@ -2,17 +2,18 @@
 use std::io::{self, Write};
 
 fn main() {
-    // TODO: Uncomment the code below to pass the first stage
+    // stage 3
+    loop {
+        // stage 1
+        print!("$ ");
+        io::stdout().flush().unwrap();
 
-    let mut input = String::new();
+        // stage 2
+        let mut input = String::new();
+        io::stdin()
+            .read_line(&mut input)
+            .expect("Failed to read line");
 
-    print!("$ ");
-    io::stdout().flush().unwrap();
-
-    io::stdin()
-        .read_line(&mut input)
-        .expect("Failed to read line");
-
-    print!("{}: command not found", input.trim());
-    io::stdout().flush().unwrap();
+        println!("{}: command not found", input.trim());
+    }
 }
