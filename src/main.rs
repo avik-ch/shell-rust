@@ -15,10 +15,15 @@ fn main() {
             .read_line(&mut input)
             .expect("Failed to read line");
 
-        if input.trim() == "exit" {
-            break;
-        } else {
-            println!("{}: command not found", input.trim());
+        let (command, args) = input
+            .trim()
+            .split_once(' ')
+            .unwrap_or_else(|| (input.trim(), ""));
+
+        match command {
+            "exit" => break,
+            "echo" => println!("{}", args),
+            _ => println!("{}: command not found", input.trim()),
         }
     }
 }
