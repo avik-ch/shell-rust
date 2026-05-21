@@ -29,6 +29,14 @@ fn main() {
             "exit" => break,
             "echo" => println!("{}", args),
             "type" => println!("{} ", type_exec(args)),
+            "pwd" => {
+                let _ = Command::new("pwd")
+                    .arg("-L")
+                    .spawn()
+                    .expect("Failed to execute pwd")
+                    .wait();
+                ()
+            }
             _ => {
                 let Some(_) = find_executable(command) else {
                     println!("{}: command not found", input.trim());
@@ -38,7 +46,7 @@ fn main() {
                 let _ = Command::new(command)
                     .args(args.split(" "))
                     .spawn()
-                    .expect("failed to execute process")
+                    .expect("Failed to execute process")
                     .wait();
             }
         }
