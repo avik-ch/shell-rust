@@ -1,5 +1,9 @@
 #[allow(unused_imports)]
-use std::io::{self, Write};
+use std::{
+    env,
+    io::{self, Write},
+    path::Path,
+};
 
 const KNOWN_COMMANDS: [&str; 3] = ["exit", "echo", "type"];
 
@@ -25,16 +29,29 @@ fn main() {
         match command {
             "exit" => break,
             "echo" => println!("{}", args),
-            "type" => get_type(args),
+            "type" => println!("{} ", type_exec(args)),
             _ => println!("{}: command not found", input.trim()),
         }
     }
 }
 
-fn get_type(arg: &str) {
+fn type_exec(arg: &str) -> String {
     if KNOWN_COMMANDS.contains(&arg) {
-        println!("{arg} is a shell builtin");
-    } else {
-        println!("{arg}: not found");
+        return format!("{arg} is a shell builtin");
     }
+
+    let paths = env::var("PATH").unwrap_or_else(|err| {
+        eprintln!("Issue with env var PATH {}", err);
+        return String::new();
+    });
+
+    for dir in env::split_paths(&paths) {
+        let full_path = Path::new(&dir).join(arg);
+
+        if full_path.exists() {
+            return format!("{} is {}", arg, full_path.to_string_lossy());
+        }
+    }
+
+    format!("{arg}: not found")
 }
