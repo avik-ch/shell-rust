@@ -4,8 +4,8 @@ use std::{
     io::{self, Write},
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
+    process::Command,
 };
-use std::{os::unix::process::CommandExt, process::Command};
 
 const KNOWN_COMMANDS: [&str; 3] = ["exit", "echo", "type"];
 
@@ -35,9 +35,11 @@ fn main() {
                     continue;
                 };
 
-                let _ = Command::new(command).args(args.split(" ")).exec();
-                // .spawn()
-                // .expect("failed to execute process");
+                let _ = Command::new(command)
+                    .args(args.split(" "))
+                    .spawn()
+                    .expect("failed to execute process")
+                    .wait();
             }
         }
     }
