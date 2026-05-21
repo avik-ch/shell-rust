@@ -7,7 +7,7 @@ use std::{
     process::Command,
 };
 
-const KNOWN_COMMANDS: [&str; 3] = ["exit", "echo", "type"];
+const KNOWN_COMMANDS: [&str; 4] = ["exit", "echo", "type", "pwd"];
 
 fn main() {
     loop {
@@ -28,15 +28,8 @@ fn main() {
         match command {
             "exit" => break,
             "echo" => println!("{}", args),
-            "type" => println!("{} ", type_exec(args)),
-            "pwd" => {
-                let _ = Command::new("pwd")
-                    .arg("-L")
-                    .spawn()
-                    .expect("Failed to execute pwd")
-                    .wait();
-                ()
-            }
+            "type" => println!("{}", type_exec(args)),
+            "pwd" => println!("{}", env::current_dir().unwrap().display()),
             _ => {
                 let Some(_) = find_executable(command) else {
                     println!("{}: command not found", input.trim());
