@@ -1,7 +1,8 @@
 #[allow(unused_imports)]
 use std::{
-    env,
+    env, fs,
     io::{self, Write},
+    os::unix::fs::PermissionsExt,
     path::Path,
 };
 
@@ -49,7 +50,12 @@ fn type_exec(arg: &str) -> String {
         let full_path = Path::new(&dir).join(arg);
 
         if full_path.exists() {
-            return format!("{} is {}", arg, full_path.to_string_lossy());
+            if let Ok(metadata) = fs::metadata(&full_path) {
+                let permissions = metadata.permissions();
+                if permissions.mode() & 0o111 != 0 {
+                    return format!("{} is {}", arg, full_path.to_string_lossy());
+                }
+            }
         }
     }
 
