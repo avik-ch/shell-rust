@@ -30,12 +30,12 @@ fn main() {
             "echo" => println!("{}", args),
             "type" => println!("{} ", type_exec(args)),
             _ => {
-                let Some(exec) = find_executable(command) else {
+                let Some(_) = find_executable(command) else {
                     println!("{}: command not found", input.trim());
                     continue;
                 };
 
-                let _ = Command::new(exec).args(args.split(" ")).exec();
+                let _ = Command::new(command).args(args.split(" ")).exec();
                 // .spawn()
                 // .expect("failed to execute process");
             }
