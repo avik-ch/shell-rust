@@ -80,6 +80,12 @@ fn find_executable(executable: &str) -> Option<PathBuf> {
 }
 
 fn cd_executable(arg: &str) {
-    env::set_current_dir(arg)
-        .unwrap_or_else(|_| println!("cd: {}: No such file or directory", arg));
+    match arg {
+        "~" => env::set_current_dir(
+            env::home_dir().expect("Something went wrong reading the HOME env var"),
+        )
+        .unwrap_or_else(|_| println!("Error reading HOME env var")),
+        _ => env::set_current_dir(arg)
+            .unwrap_or_else(|_| println!("cd: {}: No such file or directory", arg)),
+    }
 }
