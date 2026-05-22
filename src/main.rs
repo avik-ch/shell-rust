@@ -7,7 +7,7 @@ use std::{
     process::Command,
 };
 
-const KNOWN_COMMANDS: [&str; 4] = ["exit", "echo", "type", "pwd"];
+const BUILTIN_COMMANDS: [&str; 5] = ["exit", "echo", "type", "pwd", "cd"];
 
 fn main() {
     loop {
@@ -30,6 +30,7 @@ fn main() {
             "echo" => println!("{}", args),
             "type" => println!("{}", type_exec(args)),
             "pwd" => println!("{}", env::current_dir().unwrap().display()),
+            "cd" => cd_executable(args),
             _ => {
                 let Some(_) = find_executable(command) else {
                     println!("{}: command not found", input.trim());
@@ -47,7 +48,7 @@ fn main() {
 }
 
 fn type_exec(arg: &str) -> String {
-    if KNOWN_COMMANDS.contains(&arg) {
+    if BUILTIN_COMMANDS.contains(&arg) {
         return format!("{arg} is a shell builtin");
     }
 
@@ -76,4 +77,9 @@ fn find_executable(executable: &str) -> Option<PathBuf> {
     }
 
     None
+}
+
+fn cd_executable(arg: &str) {
+    env::set_current_dir(arg)
+        .unwrap_or_else(|_| println!("cd: {}: No such file or directory", arg));
 }
