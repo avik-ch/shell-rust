@@ -11,7 +11,6 @@ pub fn tokenise(line: &str) -> Result<Vec<String>, &'static str> {
             '\'' => {
                 letters.next();
                 let (mut arg, closed) = parse_quote(&mut letters);
-                println!("after parsing q, cur_arg: {}", arg);
                 if !closed {
                     get_remaining_quote(&mut arg);
                 }
