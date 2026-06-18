@@ -30,6 +30,7 @@ impl Shell {
             });
 
             let command = args.remove(0);
+            let command = command.trim();
 
             // let (command, args) = input
             //     .trim()
