@@ -22,7 +22,7 @@ impl Builtin {
         }
     }
 
-    pub fn execute(&self, args: &[&str]) -> i32 {
+    pub fn execute(&self, args: &[String]) -> i32 {
         match self {
             Builtin::Exit => std::process::exit(0),
             Builtin::Echo => {
