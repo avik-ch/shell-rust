@@ -16,6 +16,15 @@ pub fn tokenise(line: &str) -> Result<Vec<String>, &'static str> {
                 }
                 cur_arg.push_str(&arg);
             }
+            '\\' => {
+                letters.next();
+                if let Some(&next_letter) = letters.peek() {
+                    cur_arg.push(next_letter);
+                    letters.next();
+                } else {
+                    cur_arg.push('\\');
+                }
+            }
             ' ' => {
                 letters.next();
                 if !cur_arg.is_empty() {
