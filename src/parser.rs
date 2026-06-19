@@ -22,6 +22,7 @@ pub fn tokenise(line: &str) -> Result<Vec<String>, &'static str> {
                     cur_arg.push(next_letter);
                     letters.next();
                 } else {
+                    // TODO: handle backslashes at the end of the line
                     cur_arg.push('\\');
                 }
             }
@@ -44,9 +45,28 @@ pub fn tokenise(line: &str) -> Result<Vec<String>, &'static str> {
 fn parse_quote(letters: &mut impl Iterator<Item = char>, quote: char) -> (String, bool) {
     let mut cur_arg = String::new();
     while let Some(letter) = letters.next() {
-        match letter {
-            x if x == quote => return (cur_arg, true),
-            _ => cur_arg.push(letter),
+        if quote == '\'' {
+            match letter {
+                '\'' => return (cur_arg, true),
+                _ => cur_arg.push(letter),
+            }
+        } else {
+            match letter {
+                '\\' => {
+                    if let Some(next_letter) = letters.next() {
+                        match next_letter {
+                            '"' => cur_arg.push('"'),
+                            '\\' => cur_arg.push('\\'),
+                            _ => {
+                                cur_arg.push('\\');
+                                cur_arg.push(next_letter);
+                            }
+                        }
+                    }
+                }
+                '"' => return (cur_arg, true),
+                _ => cur_arg.push(letter),
+            }
         }
     }
 
