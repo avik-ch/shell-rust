@@ -38,7 +38,7 @@ impl Shell {
             } else {
                 let Some(_) = find_executable(&executable) else {
                     // TODO: move this logic to builtins completely
-                    cmd.write_stderr(format!("{}: command not found", input.trim()).as_str());
+                    cmd.write_stderr(format!("{}: command not found", executable));
                     input.clear();
                     continue;
                 };

@@ -16,7 +16,7 @@ impl Builtin {
             "echo" => Some(Builtin::Echo),
             "type" => Some(Builtin::Type),
             "pwd" => Some(Builtin::Pwd),
-            "Cd" => Some(Builtin::Cd),
+            "cd" => Some(Builtin::Cd),
             _ => None,
         }
     }
