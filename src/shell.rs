@@ -4,6 +4,7 @@ use std::{
 };
 
 use crate::builtins::Builtin;
+use crate::command::SimpleCommand;
 use crate::helpers::find_executable;
 use crate::parser::tokenise;
 
@@ -24,29 +25,38 @@ impl Shell {
                 continue;
             }
 
-            let mut args = tokenise(&input).unwrap_or_else(|_| {
-                eprintln!("Something wrong with parsing the last command");
-                vec!["".to_string()]
+            let mut cmd = tokenise(&input).unwrap_or_else(|e| {
+                eprintln!("{}", e);
+                SimpleCommand::new()
             });
 
-            let command = args.remove(0);
-            let command = command.trim();
+            let executable = cmd.args.remove(0);
+            let executable = executable.trim();
 
-            if let Some(cmd) = Builtin::lookup(&command) {
-                Builtin::execute(&cmd, &args);
+            if let Some(exec) = Builtin::lookup(&executable) {
+                Builtin::execute(&exec, &mut cmd);
             } else {
-                let Some(_) = find_executable(&command) else {
-                    println!("{}: command not found", input.trim());
+                let Some(_) = find_executable(&executable) else {
+                    // TODO: move this logic to builtins completely
+                    cmd.write_stderr(format!("{}: command not found", input.trim()).as_str());
                     input.clear();
                     continue;
                 };
 
-                let _ = Command::new(command)
-                    .args(args)
-                    .spawn()
-                    .expect("Failed to execute process")
-                    .wait();
+                match Command::new(executable).args(&cmd.args).output() {
+                    Ok(output) => {
+                        let _ = cmd.std_out.write_all(&output.stdout);
+                        let _ = cmd.std_err.write_all(&output.stderr);
+                    }
+                    Err(e) => cmd.write_stderr(e),
+                }
+                // .stdout(std_out)
+                // .stderr(std_err)
+                // .spawn()
+                // .expect("Failed to execute process")
+                // .wait();
             }
+
             input.clear();
         }
     }

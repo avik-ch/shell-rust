@@ -1,8 +1,17 @@
-use std::io::{self, Write};
-use std::mem;
+use std::{
+    fs::OpenOptions,
+    io::{self, Write},
+    iter, mem,
+    path::PathBuf,
+    str,
+};
 
-pub fn tokenise(line: &str) -> Result<Vec<String>, &'static str> {
-    let mut args = Vec::new();
+use crate::command::RedirectType;
+use crate::command::SimpleCommand;
+use anyhow::{Error, Ok};
+
+pub fn tokenise(line: &str) -> Result<SimpleCommand, Error> {
+    let mut cmd = SimpleCommand::new();
     let mut letters = line.trim().chars().peekable();
     let mut cur_arg = String::new();
 
@@ -26,10 +35,27 @@ pub fn tokenise(line: &str) -> Result<Vec<String>, &'static str> {
                     cur_arg.push('\\');
                 }
             }
+            '>' => {
+                letters.next();
+
+                match cur_arg.as_str() {
+                    "1" | "" => {
+                        handle_redirect(&mut letters, RedirectType::StdOut, &mut cmd)?;
+                    }
+                    "2" => {
+                        handle_redirect(&mut letters, RedirectType::StdErr, &mut cmd)?;
+                    }
+                    _ => {
+                        cmd.args.push(mem::take(&mut cur_arg));
+                        handle_redirect(&mut letters, RedirectType::StdOut, &mut cmd)?;
+                    }
+                }
+                cur_arg.clear();
+            }
             ' ' => {
                 letters.next();
                 if !cur_arg.is_empty() {
-                    args.push(mem::take(&mut cur_arg));
+                    cmd.args.push(mem::take(&mut cur_arg));
                 }
             }
             _ => cur_arg.push(letters.next().unwrap()),
@@ -37,9 +63,10 @@ pub fn tokenise(line: &str) -> Result<Vec<String>, &'static str> {
     }
 
     if !cur_arg.is_empty() {
-        args.push(cur_arg);
+        cmd.args.push(cur_arg);
     }
-    Ok(args)
+
+    Ok(cmd)
 }
 
 fn parse_quote(letters: &mut impl Iterator<Item = char>, quote: char) -> (String, bool) {
@@ -89,4 +116,48 @@ fn get_remaining_quote(arg: &mut String, quote: char) {
         }
         input.clear();
     }
+}
+
+fn handle_redirect(
+    letters: &mut iter::Peekable<str::Chars>,
+    redirect_type: RedirectType,
+    cmd: &mut SimpleCommand,
+) -> Result<(), Error> {
+    let mut append = false;
+    if let Some(&letter) = letters.peek() {
+        match letter {
+            '>' => {
+                letters.next();
+                append = true;
+            }
+            _ => {
+                // error will get handled by non existent file path
+            }
+        }
+    }
+
+    let file_path = letters
+        .by_ref()
+        .skip_while(|c| c.is_whitespace())
+        .collect::<String>();
+    if file_path.is_empty() {
+        return Err(Error::msg("parse error near \n"));
+    }
+
+    let file_path = PathBuf::from(file_path);
+    let file = Box::new(
+        OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(!append)
+            .append(append)
+            .open(file_path)?,
+    );
+
+    match redirect_type {
+        RedirectType::StdOut => cmd.std_out = file,
+        RedirectType::StdErr => cmd.std_err = file,
+    }
+
+    Ok(())
 }

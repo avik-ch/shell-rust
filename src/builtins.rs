@@ -1,6 +1,5 @@
+use crate::{command::SimpleCommand, helpers::find_executable};
 use std::env;
-
-use crate::helpers::find_executable;
 
 pub enum Builtin {
     Exit,
@@ -17,63 +16,65 @@ impl Builtin {
             "echo" => Some(Builtin::Echo),
             "type" => Some(Builtin::Type),
             "pwd" => Some(Builtin::Pwd),
-            "cd" => Some(Builtin::Cd),
+            "Cd" => Some(Builtin::Cd),
             _ => None,
         }
     }
 
-    pub fn execute(&self, args: &[String]) -> i32 {
+    pub fn execute(&self, command: &mut SimpleCommand) {
         match self {
             Builtin::Exit => std::process::exit(0),
             Builtin::Echo => {
-                println!("{}", args.join(" "));
-                0
+                command.write_stdout(command.args.join(" ").as_str());
             }
-            Builtin::Type => Self::type_executable(&args[0]),
-            Builtin::Pwd => Self::pwd_executable(),
+            Builtin::Type => Self::type_executable(command),
+            Builtin::Pwd => Self::pwd_executable(command),
             Builtin::Cd => {
-                Self::cd_executable(&args[0]);
-                0
+                Self::cd_executable(command);
             }
         }
     }
 
-    fn type_executable(command: &str) -> i32 {
-        match Self::lookup(command) {
+    fn type_executable(command: &mut SimpleCommand) {
+        let exec = &command.args[0];
+        match Self::lookup(exec) {
             Some(_) => {
-                println!("{command} is a shell builtin");
+                command.write_stdout(format!("{exec} is a shell builtin").as_str());
             }
-            None => match find_executable(command) {
+            None => match find_executable(exec) {
                 Some(path) => {
-                    println!("{} is {}", command, path.to_string_lossy());
+                    command
+                        .write_stdout(format!("{} is {}", exec, path.to_string_lossy()).as_str());
                 }
                 None => {
-                    println!("{command}: not found");
+                    command.write_stderr(format!("{exec}: not found").as_str());
                 }
             },
         }
-        0
     }
 
-    fn pwd_executable() -> i32 {
+    fn pwd_executable(command: &mut SimpleCommand) {
         if let Ok(cwd) = std::env::current_dir() {
-            println!("{}", cwd.display());
-            0
+            command.write_stdout(format!("{}", cwd.display()).as_str());
         } else {
-            eprintln!("pwd: error retrieving current directory");
-            1
+            command.write_stderr(format!("pwd: error retrieving current directory").as_str());
         }
     }
 
     // TODO:: Cleanup this function
-    fn cd_executable(arg: &str) {
-        match arg {
-            "~" => env::set_current_dir(
-                env::home_dir().expect("Something went wrong reading the HOME env var"),
-            )
-            .unwrap_or_else(|_| println!("Error reading HOME env var")),
-            _ => env::set_current_dir(arg)
-                .unwrap_or_else(|_| println!("cd: {}: No such file or directory", arg)),
+    fn cd_executable(command: &mut SimpleCommand) {
+        let path = &command.args[0];
+
+        let res = match path.as_str() {
+            "~" => env::set_current_dir(env::home_dir().unwrap()),
+            _ => env::set_current_dir(path),
+        };
+
+        match res {
+            Err(_) => {
+                command.write_stderr(format!("cd: {}: No such file or directory", path).as_str())
+            }
+            _ => {}
         }
     }
 }
