@@ -107,7 +107,7 @@ impl Shell {
                 continue;
             }
 
-            let Some(path) = find_executable(&executable) else {
+            let Some(_) = find_executable(&executable) else {
                 drop(inputs[index].take());
                 drop(stdout);
                 Self::write_in_background(
@@ -123,7 +123,7 @@ impl Shell {
                 .take()
                 .map(Stdio::from)
                 .unwrap_or_else(Stdio::inherit);
-            let mut process = ProcessCommand::new(path);
+            let mut process = ProcessCommand::new(&executable);
             process
                 .args(args)
                 .stdin(stdin)
