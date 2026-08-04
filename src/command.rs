@@ -1,37 +1,50 @@
-use std::{fmt::Display, io};
+use std::path::PathBuf;
 
 pub enum RedirectType {
     StdOut,
     StdErr,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct Redirect {
+    pub path: PathBuf,
+    pub append: bool,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct SimpleCommand {
     pub args: Vec<String>,
-    // pub std_in: Option<PathBuf>,
-    pub std_out: Box<dyn io::Write>,
-    pub std_err: Box<dyn io::Write>,
+    pub std_out: Option<Redirect>,
+    pub std_err: Option<Redirect>,
 }
 
 impl SimpleCommand {
     pub fn new() -> Self {
         Self {
             args: Vec::new(),
-            // std_in: None,
-            std_out: Box::new(io::stdout()),
-            std_err: Box::new(io::stderr()),
+            std_out: None,
+            std_err: None,
         }
-    }
-
-    pub fn write_stdout(&mut self, text: impl Display) {
-        let _ = writeln!(self.std_out, "{}", text);
-    }
-
-    pub fn write_stderr(&mut self, text: impl Display) {
-        let _ = writeln!(self.std_err, "{}", text);
     }
 }
 
-// pub struct Command {
-//     simple_command: Vec<SimpleCommand>,
-//     // may include background work later
-// }
+#[derive(Debug, PartialEq, Eq)]
+pub struct Command {
+    simple_commands: Vec<SimpleCommand>,
+}
+
+impl Command {
+    pub fn new() -> Self {
+        Self {
+            simple_commands: Vec::new(),
+        }
+    }
+
+    pub fn push(&mut self, command: SimpleCommand) {
+        self.simple_commands.push(command);
+    }
+
+    pub fn into_simple_commands(self) -> Vec<SimpleCommand> {
+        self.simple_commands
+    }
+}

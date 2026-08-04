@@ -1,23 +1,24 @@
 use std::{
-    fs::OpenOptions,
     io::{self, Write},
     iter, mem,
     path::PathBuf,
     str,
 };
 
-use crate::command::RedirectType;
-use crate::command::SimpleCommand;
+use crate::command::{Command, Redirect, RedirectType, SimpleCommand};
 use anyhow::{Error, Ok};
 
-pub fn tokenise(line: &str) -> Result<SimpleCommand, Error> {
+pub fn tokenise(line: &str) -> Result<Command, Error> {
+    let mut command = Command::new();
     let mut cmd = SimpleCommand::new();
     let mut letters = line.trim().chars().peekable();
     let mut cur_arg = String::new();
+    let mut arg_started = false;
 
     while let Some(&letter) = letters.peek() {
         match letter {
             '\'' | '"' => {
+                arg_started = true;
                 let quote = letters.next().unwrap();
                 let (mut arg, closed) = parse_quote(&mut letters, quote);
                 if !closed {
@@ -26,6 +27,7 @@ pub fn tokenise(line: &str) -> Result<SimpleCommand, Error> {
                 cur_arg.push_str(&arg);
             }
             '\\' => {
+                arg_started = true;
                 letters.next();
                 if let Some(&next_letter) = letters.peek() {
                     cur_arg.push(next_letter);
@@ -38,35 +40,61 @@ pub fn tokenise(line: &str) -> Result<SimpleCommand, Error> {
             '>' => {
                 letters.next();
 
-                match cur_arg.as_str() {
+                let redirect_type = match cur_arg.as_str() {
                     "1" | "" => {
-                        handle_redirect(&mut letters, RedirectType::StdOut, &mut cmd)?;
+                        arg_started = false;
+                        RedirectType::StdOut
                     }
                     "2" => {
-                        handle_redirect(&mut letters, RedirectType::StdErr, &mut cmd)?;
+                        arg_started = false;
+                        RedirectType::StdErr
                     }
                     _ => {
                         cmd.args.push(mem::take(&mut cur_arg));
-                        handle_redirect(&mut letters, RedirectType::StdOut, &mut cmd)?;
+                        arg_started = false;
+                        RedirectType::StdOut
                     }
-                }
+                };
                 cur_arg.clear();
+                handle_redirect(&mut letters, redirect_type, &mut cmd)?;
             }
-            ' ' => {
+            '|' => {
                 letters.next();
-                if !cur_arg.is_empty() {
+                if arg_started {
                     cmd.args.push(mem::take(&mut cur_arg));
+                    arg_started = false;
+                }
+
+                if cmd.args.is_empty() {
+                    return Err(Error::msg("parse error near `|'"));
+                }
+
+                command.push(mem::replace(&mut cmd, SimpleCommand::new()));
+            }
+            c if c.is_whitespace() => {
+                letters.next();
+                if arg_started {
+                    cmd.args.push(mem::take(&mut cur_arg));
+                    arg_started = false;
                 }
             }
-            _ => cur_arg.push(letters.next().unwrap()),
+            _ => {
+                arg_started = true;
+                cur_arg.push(letters.next().unwrap());
+            }
         }
     }
 
-    if !cur_arg.is_empty() {
+    if arg_started {
         cmd.args.push(cur_arg);
     }
 
-    Ok(cmd)
+    if cmd.args.is_empty() {
+        return Err(Error::msg("parse error: expected command"));
+    }
+
+    command.push(cmd);
+    Ok(command)
 }
 
 fn parse_quote(letters: &mut impl Iterator<Item = char>, quote: char) -> (String, bool) {
@@ -123,41 +151,60 @@ fn handle_redirect(
     redirect_type: RedirectType,
     cmd: &mut SimpleCommand,
 ) -> Result<(), Error> {
-    let mut append = false;
-    if let Some(&letter) = letters.peek() {
+    let append = letters.next_if(|letter| *letter == '>').is_some();
+
+    while letters.next_if(|c| c.is_whitespace()).is_some() {}
+
+    let (file_path, started) = parse_redirect_path(letters);
+    if !started {
+        return Err(Error::msg("parse error near \n"));
+    }
+
+    let redirect = Redirect {
+        path: PathBuf::from(file_path),
+        append,
+    };
+
+    match redirect_type {
+        RedirectType::StdOut => cmd.std_out = Some(redirect),
+        RedirectType::StdErr => cmd.std_err = Some(redirect),
+    }
+
+    Ok(())
+}
+
+fn parse_redirect_path(letters: &mut iter::Peekable<str::Chars>) -> (String, bool) {
+    let mut path = String::new();
+    let mut started = false;
+
+    while let Some(&letter) = letters.peek() {
         match letter {
-            '>' => {
-                letters.next();
-                append = true;
+            '\'' | '"' => {
+                started = true;
+                let quote = letters.next().unwrap();
+                let (mut value, closed) = parse_quote(letters, quote);
+                if !closed {
+                    get_remaining_quote(&mut value, quote);
+                }
+                path.push_str(&value);
             }
+            '\\' => {
+                started = true;
+                letters.next();
+                if let Some(letter) = letters.next() {
+                    path.push(letter);
+                } else {
+                    path.push('\\');
+                }
+            }
+            '|' | '>' => break,
+            c if c.is_whitespace() => break,
             _ => {
-                // error will get handled by non existent file path
+                started = true;
+                path.push(letters.next().unwrap());
             }
         }
     }
 
-    let file_path = letters
-        .by_ref()
-        .skip_while(|c| c.is_whitespace())
-        .collect::<String>();
-    if file_path.is_empty() {
-        return Err(Error::msg("parse error near \n"));
-    }
-
-    let file_path = PathBuf::from(file_path);
-    let file = Box::new(
-        OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(!append)
-            .append(append)
-            .open(file_path)?,
-    );
-
-    match redirect_type {
-        RedirectType::StdOut => cmd.std_out = file,
-        RedirectType::StdErr => cmd.std_err = file,
-    }
-
-    Ok(())
+    (path, started)
 }
