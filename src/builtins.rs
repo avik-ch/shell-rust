@@ -91,22 +91,28 @@ impl Builtin {
     }
 
     fn history_executable(history: &[String], args: &[String], stdout: &mut dyn Write) {
-        let mut max_index = -1;
-        if let Some(hist_arg) = args.first() {
-            max_index = hist_arg.parse::<i32>().unwrap_or_else(|_| -1)
-        }
+        let hist_len = history.len();
 
-        if max_index <= 0 {
-            return;
+        let mut max_index = hist_len;
+        if let Some(hist_arg) = args.first() {
+            max_index = hist_arg.parse::<usize>().unwrap_or_else(|_| hist_len)
         }
 
         let mut index = 0;
         for command in history.iter() {
-            let _ = writeln!(stdout, "    {}  {}", index + 1, command);
+            if index < hist_len - max_index {
+                index += 1;
+                continue;
+            }
             index += 1;
+            let _ = writeln!(stdout, "    {}  {}", index, command);
             if index == max_index {
                 break;
             }
         }
     }
 }
+
+//         v
+// 0 1 2 3 4 5
+//
