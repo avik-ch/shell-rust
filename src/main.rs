@@ -8,5 +8,6 @@ mod parser;
 mod shell;
 
 fn main() {
-    shell::Shell::run();
+    let mut shell = shell::Shell::new();
+    shell.run();
 }

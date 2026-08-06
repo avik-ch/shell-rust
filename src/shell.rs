@@ -12,7 +12,9 @@ use crate::command::{Command, Redirect};
 use crate::helpers::find_executable;
 use crate::parser::tokenise;
 
-pub struct Shell;
+pub struct Shell {
+    pub history: Vec<String>,
+}
 
 enum OutputDestination {
     Inherit,
@@ -27,7 +29,13 @@ enum OutputStream {
 }
 
 impl Shell {
-    pub fn run() {
+    pub fn new() -> Self {
+        Self {
+            history: Vec::new(),
+        }
+    }
+
+    pub fn run(&mut self) {
         let mut input = String::new();
         loop {
             print!("$ ");
@@ -45,6 +53,8 @@ impl Shell {
                 continue;
             }
 
+            Self::add_history(self, &input);
+
             let command = match tokenise(&input) {
                 Ok(command) => command,
                 Err(error) => {
@@ -53,13 +63,17 @@ impl Shell {
                 }
             };
 
-            if let Err(error) = Self::execute(command) {
+            if let Err(error) = self.execute(command) {
                 eprintln!("{error}");
             }
         }
     }
 
-    fn execute(command: Command) -> io::Result<()> {
+    pub fn add_history(&mut self, cmd: &str) {
+        self.history.push(cmd.trim_end().to_owned());
+    }
+
+    fn execute(&self, command: Command) -> io::Result<()> {
         let mut commands = command.into_simple_commands();
         let command_count = commands.len();
         let mut inputs: Vec<Option<PipeReader>> = (0..command_count).map(|_| None).collect();
@@ -101,7 +115,7 @@ impl Shell {
 
                 let mut stdout_bytes = Vec::new();
                 let mut stderr_bytes = Vec::new();
-                builtin.execute(&args, &mut stdout_bytes, &mut stderr_bytes);
+                builtin.execute(&self.history, &args, &mut stdout_bytes, &mut stderr_bytes);
                 Self::write_in_background(stdout, OutputStream::Stdout, stdout_bytes, &mut writers);
                 Self::write_in_background(stderr, OutputStream::Stderr, stderr_bytes, &mut writers);
                 continue;

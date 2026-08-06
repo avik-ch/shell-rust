@@ -23,7 +23,13 @@ impl Builtin {
         }
     }
 
-    pub fn execute(&self, args: &[String], stdout: &mut dyn Write, stderr: &mut dyn Write) {
+    pub fn execute(
+        &self,
+        history: &[String],
+        args: &[String],
+        stdout: &mut dyn Write,
+        stderr: &mut dyn Write,
+    ) {
         match self {
             Builtin::Exit => std::process::exit(0),
             Builtin::Echo => {
@@ -34,7 +40,7 @@ impl Builtin {
             Builtin::Cd => {
                 Self::cd_executable(args, stderr);
             }
-            Builtin::History => Self::history_executable(stdout, stderr),
+            Builtin::History => Self::history_executable(history, stdout),
         }
     }
 
@@ -84,5 +90,9 @@ impl Builtin {
         }
     }
 
-    fn history_executable(stdout: &mut dyn Write, stderr: &mut dyn Write) {}
+    fn history_executable(history: &[String], stdout: &mut dyn Write) {
+        for (index, command) in history.iter().enumerate() {
+            let _ = writeln!(stdout, "    {}  {}", index + 1, command);
+        }
+    }
 }
