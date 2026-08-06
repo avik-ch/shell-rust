@@ -7,6 +7,7 @@ pub enum Builtin {
     Type,
     Pwd,
     Cd,
+    History,
 }
 
 impl Builtin {
@@ -17,6 +18,7 @@ impl Builtin {
             "type" => Some(Builtin::Type),
             "pwd" => Some(Builtin::Pwd),
             "cd" => Some(Builtin::Cd),
+            "history" => Some(Builtin::History),
             _ => None,
         }
     }
@@ -32,6 +34,7 @@ impl Builtin {
             Builtin::Cd => {
                 Self::cd_executable(args, stderr);
             }
+            Builtin::History => Self::history_executable(stdout, stderr),
         }
     }
 
@@ -80,4 +83,6 @@ impl Builtin {
             let _ = writeln!(stderr, "cd: {}: No such file or directory", path);
         }
     }
+
+    fn history_executable(stdout: &mut dyn Write, stderr: &mut dyn Write) {}
 }
