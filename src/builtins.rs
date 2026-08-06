@@ -40,7 +40,7 @@ impl Builtin {
             Builtin::Cd => {
                 Self::cd_executable(args, stderr);
             }
-            Builtin::History => Self::history_executable(history, stdout),
+            Builtin::History => Self::history_executable(history, args, stdout),
         }
     }
 
@@ -90,9 +90,23 @@ impl Builtin {
         }
     }
 
-    fn history_executable(history: &[String], stdout: &mut dyn Write) {
-        for (index, command) in history.iter().enumerate() {
+    fn history_executable(history: &[String], args: &[String], stdout: &mut dyn Write) {
+        let mut max_index = -1;
+        if let Some(hist_arg) = args.first() {
+            max_index = hist_arg.parse::<i32>().unwrap_or_else(|_| -1)
+        }
+
+        if max_index <= 0 {
+            return;
+        }
+
+        let mut index = 0;
+        for command in history.iter() {
             let _ = writeln!(stdout, "    {}  {}", index + 1, command);
+            index += 1;
+            if index == max_index {
+                break;
+            }
         }
     }
 }
