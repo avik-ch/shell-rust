@@ -2,10 +2,15 @@ use std::{
     fs::{File, OpenOptions},
     io::{self, Write},
     process::{Child, Command as ProcessCommand, Stdio},
+    sync::mpsc::{self, Receiver, Sender},
     thread::{self, JoinHandle},
 };
 
 use os_pipe::{PipeReader, PipeWriter};
+use rustyline::{
+    Cmd, ConditionalEventHandler, DefaultEditor, Event, EventContext, EventHandler, KeyCode,
+    KeyEvent, Modifiers, RepeatCount, error::ReadlineError,
+};
 
 use crate::builtins::Builtin;
 use crate::command::{Command, Redirect};
@@ -14,6 +19,27 @@ use crate::parser::tokenise;
 
 pub struct Shell {
     pub history: Vec<String>,
+    history_position: usize,
+    history_events: Receiver<HistoryDirection>,
+    editor: DefaultEditor,
+}
+
+#[derive(Clone, Copy)]
+enum HistoryDirection {
+    Previous,
+    Next,
+}
+
+struct HistoryEventHandler {
+    events: Sender<HistoryDirection>,
+    direction: HistoryDirection,
+}
+
+impl ConditionalEventHandler for HistoryEventHandler {
+    fn handle(&self, _: &Event, _: RepeatCount, _: bool, _: &EventContext) -> Option<Cmd> {
+        let _ = self.events.send(self.direction);
+        Some(Cmd::AcceptLine)
+    }
 }
 
 enum OutputDestination {
@@ -30,24 +56,41 @@ enum OutputStream {
 
 impl Shell {
     pub fn new() -> Self {
+        let (history_events_tx, history_events) = mpsc::channel();
+        let mut editor = DefaultEditor::new().expect("Failed to initialize line editor");
+
+        for (key, direction) in [
+            (KeyCode::Up, HistoryDirection::Previous),
+            (KeyCode::Down, HistoryDirection::Next),
+        ] {
+            editor.bind_sequence(
+                KeyEvent(key, Modifiers::NONE),
+                EventHandler::Conditional(Box::new(HistoryEventHandler {
+                    events: history_events_tx.clone(),
+                    direction,
+                })),
+            );
+        }
+
         Self {
             history: Vec::new(),
+            history_position: 0,
+            history_events,
+            editor,
         }
     }
 
     pub fn run(&mut self) {
-        let mut input = String::new();
         loop {
-            print!("$ ");
-            io::stdout().flush().unwrap();
-
-            input.clear();
-            let bytes_read = io::stdin()
-                .read_line(&mut input)
-                .expect("Failed to read line");
-            if bytes_read == 0 {
-                break;
-            }
+            let input = match self.read_input() {
+                Ok(input) => input,
+                Err(ReadlineError::Interrupted) => break,
+                Err(ReadlineError::Eof) => break,
+                Err(error) => {
+                    eprintln!("Failed to read line: {error}");
+                    break;
+                }
+            };
 
             if input.trim().is_empty() {
                 continue;
@@ -69,8 +112,54 @@ impl Shell {
         }
     }
 
+    fn read_input(&mut self) -> rustyline::Result<String> {
+        let mut initial = None;
+
+        loop {
+            let input = match initial.as_deref() {
+                Some(command) => self.editor.readline_with_initial("$ ", (command, ""))?,
+                None => self.editor.readline("$ ")?,
+            };
+            let Ok(direction) = self.history_events.try_recv() else {
+                return Ok(input);
+            };
+            let command = match direction {
+                HistoryDirection::Previous => self.previous(),
+                HistoryDirection::Next => self.next(),
+            };
+
+            // AcceptLine ends the current edit; erase it before rustyline redraws the recalled one.
+            print!("\x1b[1A\r\x1b[2K");
+            io::stdout().flush()?;
+            initial = Some(command);
+        }
+    }
+
     pub fn add_history(&mut self, cmd: &str) {
         self.history.push(cmd.trim_end().to_owned());
+        self.history_position = self.history.len();
+    }
+
+    fn previous(&mut self) -> String {
+        if self.history_position > 0 {
+            self.history_position -= 1;
+        }
+
+        self.history
+            .get(self.history_position)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    fn next(&mut self) -> String {
+        if self.history_position < self.history.len() {
+            self.history_position += 1;
+        }
+
+        self.history
+            .get(self.history_position)
+            .cloned()
+            .unwrap_or_default()
     }
 
     fn execute(&self, command: Command) -> io::Result<()> {

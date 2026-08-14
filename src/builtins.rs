@@ -73,7 +73,6 @@ impl Builtin {
         }
     }
 
-    // TODO:: Cleanup this function
     fn cd_executable(args: &[String], stderr: &mut dyn Write) {
         let Some(path) = args.first() else {
             let _ = writeln!(stderr, "cd: missing operand");
@@ -112,7 +111,3 @@ impl Builtin {
         }
     }
 }
-
-//         v
-// 0 1 2 3 4 5
-//
